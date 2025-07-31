@@ -1,25 +1,21 @@
-/* =============================================================
- *  da7212_speaker_init.h  –  EK‑RA8P1 / DA7212 Speaker Driver
- *  Revised: 2025‑07‑31  (all fixes applied)
- * =============================================================*/
+/* da7212_speaker_init.h */
 #ifndef DA7212_SPEAKER_INIT_H_
 #define DA7212_SPEAKER_INIT_H_
 
-#include "bsp_api.h"   /* fsp_err_t, delay units */
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "bsp_api.h"  // fsp_err_t 정의
 
 /**
- * @brief  Initialise DA7212 codec for differential speaker output (SP_P / SP_N).
- *         – 48 kHz, 16‑bit, I²S, MCU master clocking.
- * @return FSP_SUCCESS on success, otherwise FSP error code.
+ * @brief   DA7212 사운드 출력용 초기화
+ *
+ * EK-RA8P1 보드에서 DA7212 오디오 코덱을 스피커 드라이버로 사용하기 위한
+ * I2C 레지스터 초기화 함수를 제공합니다.
+ *
+ * @note    Smart Configurator에서 다음을 설정해야 합니다:
+ *          - g_i2c_master0_cfg.slave_address = 0x1A
+ *          - Peripherals: I2C Master (IIC0), SSI (r_ssi), GPT (r_gpt)
  */
+
+
 fsp_err_t da7212_speaker_init(void);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* DA7212_SPEAKER_INIT_H_ */
+#endif // DA7212_SPEAKER_INIT_H_

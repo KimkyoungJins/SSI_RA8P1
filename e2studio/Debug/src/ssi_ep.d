@@ -1,4 +1,5 @@
-src/ssi_ep.o: ../src/ssi_ep.c ../src/da7212_speaker_init.h \
+src/ssi_ep.o: ../src/ssi_ep.c ../src/ssi_ep.h ../src/common_utils.h \
+  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_gen/hal_data.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/bsp_api.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/fsp_common_api.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/fsp_version.h \
@@ -47,17 +48,15 @@ src/ssi_ep.o: ../src/ssi_ep.c ../src/da7212_speaker_init.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/../../inc/../../fsp/src/bsp/mcu/all/bsp_compiler_support.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/../../src/bsp/mcu/all/bsp_delay.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/../../src/bsp/mcu/all/bsp_mcu_api.h \
-  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_iic_master.h \
-  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_cfg/fsp_cfg/r_iic_master_cfg.h \
-  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_i2c_master_api.h \
-  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_transfer_api.h \
-  ../src/common_utils.h \
-  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_gen/hal_data.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_gen/common_data.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_ioport.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_ioport_api.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_cfg/fsp_cfg/r_ioport_cfg.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_cfg/fsp_cfg/bsp/bsp_pin_cfg.h \
+  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_iic_master.h \
+  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_cfg/fsp_cfg/r_iic_master_cfg.h \
+  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_i2c_master_api.h \
+  /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_transfer_api.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_gpt.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_timer_api.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_dtc.h \
@@ -65,7 +64,9 @@ src/ssi_ep.o: ../src/ssi_ep.c ../src/da7212_speaker_init.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_i2s_api.h \
   /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_ssi.h \
   ../src/SEGGER_RTT/SEGGER_RTT.h ../src/SEGGER_RTT/SEGGER_RTT_Conf.h
-../src/da7212_speaker_init.h:
+../src/ssi_ep.h:
+../src/common_utils.h:
+/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_gen/hal_data.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/bsp_api.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/fsp_common_api.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/fsp_version.h:
@@ -114,17 +115,15 @@ bsp_linker_info.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/../../inc/../../fsp/src/bsp/mcu/all/bsp_compiler_support.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/../../src/bsp/mcu/all/bsp_delay.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/../../src/bsp/mcu/all/bsp_mcu_api.h:
-/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_iic_master.h:
-/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_cfg/fsp_cfg/r_iic_master_cfg.h:
-/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_i2c_master_api.h:
-/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_transfer_api.h:
-../src/common_utils.h:
-/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_gen/hal_data.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_gen/common_data.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_ioport.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_ioport_api.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_cfg/fsp_cfg/r_ioport_cfg.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_cfg/fsp_cfg/bsp/bsp_pin_cfg.h:
+/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_iic_master.h:
+/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra_cfg/fsp_cfg/r_iic_master_cfg.h:
+/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_i2c_master_api.h:
+/Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_transfer_api.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_gpt.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/api/r_timer_api.h:
 /Users/kim_kyoungkun/Desktop/ssi/ssi_ek_ra8p1_ep/e2studio/ra/fsp/inc/instances/r_dtc.h:
