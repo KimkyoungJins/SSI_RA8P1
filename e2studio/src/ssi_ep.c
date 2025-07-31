@@ -65,10 +65,10 @@ void ssi_entry(void)
               "\r\nThe sample data can be observed using waveform rendering in the memory"
               "\r\nviewer of e2studio.\r\n");
 
-    /* Open SSI module */
-    err = R_SSI_Open(&g_i2s_ctrl, &g_i2s_cfg);
-    APP_PRINT("\n");
-    APP_PRINT("Successfuly opened!\r\n");
+//    /* Open SSI module */
+//    err = R_SSI_Open(&g_i2s_ctrl, &g_i2s_cfg);
+//    APP_PRINT("\n");
+//    APP_PRINT("Successfuly opened!\r\n");
 
 
     /* Handle error */
