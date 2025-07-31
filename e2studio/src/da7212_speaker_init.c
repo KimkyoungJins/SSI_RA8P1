@@ -25,6 +25,11 @@ fsp_err_t da7212_speaker_init(void);
 // 외부에서 정의된 I2C 마스터 컨트롤러와 설정
 extern iic_master_instance_ctrl_t g_i2c_master0_ctrl;
 extern const i2c_master_cfg_t     g_i2c_master0_cfg;
+static fsp_err_t da7212_read_register(uint8_t reg_addr, uint8_t* p_data);
+fsp_err_t da7212_set_speaker_volume_max(void);
+fsp_err_t da7212_set_dac_volume_max(void);
+
+
 
 /**
  * DA7212 레지스터 초기
@@ -36,76 +41,66 @@ fsp_err_t da7212_speaker_init(void)
 {
     fsp_err_t err;
     uint8_t   reg[2];
+    uint8_t   status;
 
+    // GPIO 설정 (I2C 풀업용)
+    R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_05_PIN_12, BSP_IO_LEVEL_HIGH);
+    R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_05_PIN_11, BSP_IO_LEVEL_HIGH);
     R_BSP_SoftwareDelay(50, BSP_DELAY_UNITS_MILLISECONDS);
 
-    R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_05_PIN_12, BSP_IO_LEVEL_HIGH);
-
-    R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_05_PIN_11, BSP_IO_LEVEL_HIGH);
-
-    R_BSP_SoftwareDelay(10, BSP_DELAY_UNITS_MILLISECONDS);
-
-
-
-    // 1) I2C 마스터 오픈 (slave_address: 0x1A)
+    // I2C 마스터 초기화
     err = R_IIC_MASTER_Open(&g_i2c_master0_ctrl, &g_i2c_master0_cfg);
-    if (FSP_SUCCESS != err)
-
-    {
-        SEGGER_RTT_printf(0, "\r\n");
-        APP_ERR_PRINT("DA7212 init error: I2C open failed (0x%02X)\r\n", err);
+    if (FSP_SUCCESS != err) {
+        APP_ERR_PRINT("I2C open failed (0x%02X)\r\n", err);
         return err;
     }
 
-    // 빈 콜백 함수 추가하기
-    /* ―― ① 콜백 등록 추가 ――――――――――――――――――――― */
-    R_IIC_MASTER_CallbackSet(&g_i2c_master0_ctrl,
-                             i2c_master0_callback,   /* 아래 정의한 콜백 */
-                             NULL,                   /* p_context */
-                             NULL);                  /* p_callback_memory */
-    /* ――――――――――――――――――――――――――――――――――――― */
+    // 콜백 설정
+    R_IIC_MASTER_CallbackSet(&g_i2c_master0_ctrl, i2c_master0_callback, NULL, NULL);
 
-    // 2) SYSTEM_ACTIVE 설정
+    // 통신 테스트 (STATUS1 레지스터 읽기)
+    err = da7212_read_register(0x02, &status);
+    if (FSP_SUCCESS != err) {
+        APP_ERR_PRINT("DA7212 communication test failed (0x%02X)\r\n", err);
+        return err;
+    }
+
+    // 1. SYSTEM_ACTIVE 설정
     reg[0] = 0xFD; reg[1] = 0x01;
     err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
-    if (FSP_SUCCESS != err)
-    {
-        APP_ERR_PRINT("DA7212 init error: SYSTEM_ACTIVE write failed (0x%02X)\r\n", err);
-        return err;
-    }
+    if (FSP_SUCCESS != err) return err;
     R_BSP_SoftwareDelay(40, BSP_DELAY_UNITS_MILLISECONDS);
 
-    // 3) BIAS_EN 활성화
+    // 2. BIAS_EN 활성화
     reg[0] = 0x23; reg[1] = 0x08;
     err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
-    if (FSP_SUCCESS != err)
-    {
-        APP_ERR_PRINT("DA7212 init error: BIAS_EN write failed (0x%02X)\r\n", err);
-        return err;
-    }
+    if (FSP_SUCCESS != err) return err;
     R_BSP_SoftwareDelay(25, BSP_DELAY_UNITS_MILLISECONDS);
 
-    // 4) 샘플레이트 48kHz 설정
+    // 3. 샘플레이트 48kHz 설정
     reg[0] = 0x22; reg[1] = 0x0B;
     err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
-    if (FSP_SUCCESS != err)
-    {
-        APP_ERR_PRINT("DA7212 init error: sample rate write failed (0x%02X)\r\n", err);
-        return err;
-    }
+    if (FSP_SUCCESS != err) return err;
 
-    // 5) PLL 설정
-    const struct { uint8_t addr, val; } pll_cfg[] = { {0x27,0x84}, {0x24,0x00}, {0x25, 0x00}, {0x26,0x20} };
-    for (size_t i = 0; i < sizeof(pll_cfg)/sizeof(pll_cfg[0]); ++i)
-    {
+    // 4. PLL 설정
+    const struct { uint8_t addr, val; } pll_cfg[] = {
+        {0x27, 0x84}, {0x24, 0x00}, {0x25, 0x00}, {0x26, 0x20}
+    };
+
+    for (size_t i = 0; i < sizeof(pll_cfg)/sizeof(pll_cfg[0]); ++i) {
         reg[0] = pll_cfg[i].addr;
         reg[1] = pll_cfg[i].val;
         err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
-        if (FSP_SUCCESS != err)
-        {
-            APP_ERR_PRINT("DA7212 init error: PLL reg 0x%02X write failed (0x%02X)\r\n", reg[0], err);
-            return err;
-        }
+        if (FSP_SUCCESS != err) return err;
+    }
+
+    R_BSP_SoftwareDelay(5, BSP_DELAY_UNITS_MILLISECONDS);
+
+    // 5. PLL 상태 확인 (올바른 레지스터 사용)
+    err = da7212_read_register(0x03, &status);  // PLL_STATUS 레지스터
+    if ((FSP_SUCCESS != err) || !(status & 0x01)) {  // Bit 0: PLL_LOCK
+        APP_ERR_PRINT("PLL lock fail (status=0x%02X)\r\n", status);
+        return (err ? err : FSP_ERR_ABORTED);
     }
 
     // 6) DAI Clock Mode 설정
@@ -188,11 +183,60 @@ fsp_err_t da7212_speaker_init(void)
     // 14) 안정화 대기
     R_BSP_SoftwareDelay(250, BSP_DELAY_UNITS_MILLISECONDS);
 
+
+    da7212_set_speaker_volume_max();
+    da7212_set_dac_volume_max();
+
+
     return FSP_SUCCESS;
 }
 
 void i2c_master0_callback(i2c_master_callback_args_t * p_args)
 {
-    /* 지금은 아무 것도 하지 않음 */
     FSP_PARAMETER_NOT_USED(p_args);
 }
+
+
+static fsp_err_t da7212_read_register(uint8_t reg_addr, uint8_t* p_data)
+{
+    fsp_err_t err;
+
+    err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, &reg_addr, 1, false);
+    if (FSP_SUCCESS != err) return err;
+
+    err = R_IIC_MASTER_Read(&g_i2c_master0_ctrl, p_data, 1, true);
+    return err;
+}
+
+
+// LINE_AMP_GAIN (스피커 앰프) 최대 +15dB로 설정
+fsp_err_t da7212_set_speaker_volume_max(void)
+{
+    uint8_t reg[2];
+    fsp_err_t err;
+
+    reg[0] = 0x4A; // LINE_AMP_GAIN
+    reg[1] = 0x3F; // +15dB (0x00=-48dB, ... 0x3F=+15dB)
+    err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
+    if (FSP_SUCCESS != err)
+        APP_ERR_PRINT("Speaker volume set error: 0x%02X\n", err);
+
+    return err;
+}
+
+// DAC 디지털 볼륨(좌우) 최대 +12dB
+fsp_err_t da7212_set_dac_volume_max(void)
+{
+    uint8_t reg[2];
+    fsp_err_t err;
+
+    reg[0] = 0x45; reg[1] = 0x7F; // DAC_L_DIGITAL_GAIN: 0x7F = +12dB
+    err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
+    if (FSP_SUCCESS != err) return err;
+
+    reg[0] = 0x46; reg[1] = 0x7F; // DAC_R_DIGITAL_GAIN
+    err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
+
+    return err;
+}
+

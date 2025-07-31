@@ -23,7 +23,6 @@ void hal_entry(void)
 {
     fsp_err_t err;
 
-
     err = da7212_speaker_init();
 
     /* Open SSI module */
