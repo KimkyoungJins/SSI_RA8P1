@@ -18,7 +18,6 @@ static void deinit_gpt(void);
 static void deinit_ssi(void);
 
 
-
 // 스피커를 작동하기 위한 초기
 fsp_err_t da7212_speaker_init(void);
 
@@ -50,8 +49,6 @@ void ssi_entry(void)
     fsp_pack_version_t version = {RESET_VALUE};
     volatile uint32_t time_out = MAX_TIME;          /* time_out value which is used to break the infinite loop */\
 
-
-
     /* Version get API for FLEX pack information */
     R_FSP_VersionGet(&version);
 
@@ -68,10 +65,10 @@ void ssi_entry(void)
               "\r\nThe sample data can be observed using waveform rendering in the memory"
               "\r\nviewer of e2studio.\r\n");
 
-//    /* Open SSI module */
-//    err = R_SSI_Open(&g_i2s_ctrl, &g_i2s_cfg);
-//    APP_PRINT("\n");
-//    APP_PRINT("Successfuly opened!\r\n");
+    /* Open SSI module */
+    err = R_SSI_Open(&g_i2s_ctrl, &g_i2s_cfg);
+    APP_PRINT("\n");
+    APP_PRINT("Successfuly opened!\r\n");
 
 
     /* Handle error */
@@ -93,6 +90,7 @@ void ssi_entry(void)
         /* Trap here */
         APP_ERR_TRAP(err);
     }
+
     else if(FSP_SUCCESS == err)
     {
         APP_PRINT("\n");

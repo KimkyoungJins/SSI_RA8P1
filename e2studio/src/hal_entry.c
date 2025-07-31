@@ -28,9 +28,6 @@ void hal_entry(void)
     /* Open SSI module */
     /* ① SSI를 열어 MCLK/BCLK/WCLK 만 먼저 토글 */
     err = R_SSI_Open(&g_i2s_ctrl, &g_i2s_cfg);
-    APP_PRINT("\n");
-    APP_PRINT("Successfuly opened!\r\n");
-
     if (FSP_SUCCESS != err)
     {
         APP_ERR_PRINT("DA7212 init failed\r\n");
