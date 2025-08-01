@@ -1,344 +1,179 @@
-/***********************************************************************************************************************
- * File Name    : ssi_ep.c
- * Description  : Contains data structures and functions used in ssi_ep.c.
- **********************************************************************************************************************/
-/***********************************************************************************************************************
-* Copyright (c) 2020 - 2025 Renesas Electronics Corporation and/or its affiliates
-*
-* SPDX-License-Identifier: BSD-3-Clause
-***********************************************************************************************************************/
+/*
+ * File Name    : ssi_ep_no_loopback.c
+ * Description  : Streams a generated stereo sine wave to the DA7212 codec
+ *                using SSI (I2S) on the EK‑RA8P1 board.
+ *                All loop‑back (RX) logic has been removed – this build is
+ *                transmit‑only and intended for real speaker output.
+ *
+ * Target HW     : EK‑RA8P1 + DA7212 (on‑board) + Speaker on J33
+ * Toolchain     : Renesas e² studio + FSP 5.x
+ *
+ * 2025‑07‑31 – Initial TX‑only version
+ * ---------------------------------------------------------------------------*/
 
-#include "ssi_ep.h"
-#include "hal_data.h"
+#include "ssi_ep.h"          /* Example‑specific definitions/macros */
+#include "hal_data.h"        /* g_i2s_ctrl, g_timer_ctrl, etc. */
 
-/* Private functions */
+/***** Private function prototypes *******************************************/
 static void ssi_example_calculate_samples(uint32_t buffer_index);
-static void ssi_example_write();
+static void ssi_example_write(void);
 static void deinit_gpt(void);
 static void deinit_ssi(void);
 
-
-// 스피커를 작동하기 위한 초기
+/* External – DA7212 I2C initialisation (user supplies in another unit) */
 fsp_err_t da7212_speaker_init(void);
 
-/*******************************************************************************************************************//**
- * @addtogroup SSI_EP
- * @{
- **********************************************************************************************************************/
+/***** Globals ***************************************************************/
+volatile i2s_event_t g_i2s_event       = I2S_EVENT_TX_EMPTY;   /* Updated in callback */
+volatile bool        g_send_data_now   = true;                 /* Main‑loop TX trigger */
+volatile bool        g_data_ready      = false;                /* True when buffer filled */
+volatile uint8_t     g_buffer_index    = 0;                    /* Ping‑pong index (0/1) */
 
-/* Global variables */
-volatile i2s_event_t g_i2s_event       = I2S_EVENT_TX_EMPTY;  /* An actual event updates in callback */
-volatile bool g_send_data_in_main_loop = true;
-volatile bool g_data_ready             = false;
-volatile uint8_t g_buffer_index        = 0;
+/* Ping‑pong source buffers (stereo 16‑bit samples) */
+static int16_t g_src_buff[2][SSI_STREAMING_EXAMPLE_SAMPLES_PER_CHUNK];
 
-/* Destination buffer to receive the sample audio data */
-uint8_t g_dest_buff[BUFF_SIZE] = {RESET_VALUE};
-
-/* Source buffer to transmit the sample audio data */
-int16_t g_src_buff[2][SSI_STREAMING_EXAMPLE_SAMPLES_PER_CHUNK];
-
-/***********************************************************************************************************************
- * The RA Configuration tool generates main() and uses it to generate threads if an RTOS is used. This function is
- * called by main() when no RTOS is used.
- **********************************************************************************************************************/
+/***** Example entry point (called from main when no RTOS) *******************/
 void ssi_entry(void)
 {
-    /* Error status */
     fsp_err_t err = FSP_SUCCESS;
-    fsp_pack_version_t version = {RESET_VALUE};
-    volatile uint32_t time_out = MAX_TIME;          /* time_out value which is used to break the infinite loop */\
+    fsp_pack_version_t version = {0};
 
-    /* Version get API for FLEX pack information */
+    /* Print banner */
     R_FSP_VersionGet(&version);
+    APP_PRINT(BANNER_INFO, EP_VERSION, version.version_id_b.major,
+              version.version_id_b.minor, version.version_id_b.patch);
+    APP_PRINT("\r\nTX‑only SSI example – streaming sine wave to DA7212\r\n\r\n");
 
-    /* Example project information printed on the Console */
-    APP_PRINT(BANNER_INFO, EP_VERSION, version.version_id_b.major, version.version_id_b.minor,\
-              version.version_id_b.patch);
-    APP_PRINT("\r\nThis example project demonstrates audio streaming using the SSI module"
-              "\r\nwith a double-buffer mechanism. A sine wave is generated and continuously"
-              "\r\nstreamed via a loopback connection between the SSITX and SSIRX pins."
-              "\r\nThe sine wave data is stored in two buffers, alternating between them"
-              "\r\nto ensure continuous and uninterrupted streaming. The transmitted and"
-              "\r\nreceived audio data are compared to verify the successful completion of"
-              "\r\nthe SSI transfer. The results will be displayed on the RTT Viewer."
-              "\r\nThe sample data can be observed using waveform rendering in the memory"
-              "\r\nviewer of e2studio.\r\n");
+    /* ---- Initialise peripherals ---------------------------------------- */
 
+    /* 1) Open SSI (I2S) – configuration generated by FSP */
+    err = R_SSI_Open(&g_i2s_ctrl, &g_i2s_cfg);
+    APP_ERR_TRAP(err);
 
-    /* Handle error */
-    if (FSP_SUCCESS != err)
-    {
-        APP_ERR_PRINT("\r\nSSI open failed\r\n");
-        /* Trap here */
-        APP_ERR_TRAP(err);
-    }
-
-    /* Open GPT in periodic mode as internal clock for SSI bit clock */
+    /* 2) Open GPT to supply AUDIO_CLK for SSI bit clock generation */
     err = R_GPT_Open(&g_timer_ctrl, &g_timer_cfg);
+    APP_ERR_TRAP(err);
 
-    /* Handle error */
-    if (FSP_SUCCESS != err)
-    {
-        APP_ERR_PRINT("\r\nGPT open failed, Closing SSI\r\n");
-        deinit_ssi();
-        /* Trap here */
-        APP_ERR_TRAP(err);
-    }
-
-    else if(FSP_SUCCESS == err)
-    {
-        APP_PRINT("\n");
-        APP_PRINT("Timer Successfully opened!\r\n");
-    }
-
-    /* Start GPT in periodic mode */
     err = R_GPT_Start(&g_timer_ctrl);
-    /* Handle error */
-    if (FSP_SUCCESS != err)
+    APP_ERR_TRAP(err);
+
+    /* 3) Initialise the DA7212 codec via I2C */
+    err = da7212_speaker_init();
+    APP_ERR_TRAP(err);
+
+    /* ---- Prime the double buffer with initial samples ------------------- */
+    ssi_example_calculate_samples(0);
+    ssi_example_calculate_samples(1);
+
+    /* ---- Kick‑off first transfer --------------------------------------- */
+    ssi_example_write();
+
+    /* ---- Main application loop ----------------------------------------- */
+    while (true)
     {
-        APP_ERR_PRINT("\r\nGPT start failed, Closing SSI and GPT\r\n");
-        deinit_ssi();
-        deinit_gpt();
-        /* Trap here */
-        APP_ERR_TRAP(err);
+        /* If callback indicated data wasn’t ready in time, TX from main loop */
+        if (g_send_data_now)
+        {
+            g_send_data_now = false;
+            ssi_example_write();
+        }
+
+        /* While CPU is free, prepare next buffer */
+        if (!g_data_ready)
+        {
+            ssi_example_calculate_samples(g_buffer_index);   /* Fill idle buffer */
+        }
+
+        /* Optional: add application code here */
     }
-    else if(FSP_SUCCESS == err)
-        {
-            APP_PRINT("\n");
-            APP_PRINT("Timer Will bee started!\r\n");
-        }
-
-    /* Prepare samples in the currently active buffer */
-//    현재 사용중인 버퍼에 사인파 데이터를 생성여서 채운다.
-//    두번째 버퍼에도 미리 데이터를 준비해 둔다. 다음 번 전송 루프에서 즉시 전송 가능하게 만들기 위
-    ssi_example_calculate_samples(g_buffer_index);
-
-    /* Prepare samples in the next buffer */
-    ssi_example_calculate_samples(!g_buffer_index);
-
-    while(true)
-        {
-            /* Send data in main loop the first time, and if it was not ready in the interrupt */
-            if (g_send_data_in_main_loop)
-            {
-                /* Clear flag */
-                g_send_data_in_main_loop = false;
-                /* Reload transmit buffer and handle errors */
-                ssi_example_write();
-            }
-
-            /* Wait for all transfer was complete of WriteRead operation using I2S_EVENT_RX_FULL event */
-            while (I2S_EVENT_RX_FULL != g_i2s_event)
-            {
-                __NOP();
-            }
-
-            /* Set the timeout */
-            time_out = MAX_TIME;
-
-            /* Wait for completion of WriteRead operation using I2S_EVENT_IDLE event and time_out. Using these both
-             * ensures that the DTC transfer will be over by the time transmit underflow occurs during R_SSI_WriteRead
-             * processing. This is important so the receive buffer can be flushed in the transmit underflow error
-             * processing. Without this, the last frame (two samples) could be lost during R_SSI_WriteRead */
-
-//            SSI 인터페이스에서 수신 완료 이벤트(I2S_EVENT_RX_FULL) 가 발생할 때까지 기다린다.
-//            즉, SSI 인터페이스가 오디오 데이터를 다 읽을 때까지 대기한다.
-            while ((I2S_EVENT_IDLE != g_i2s_event) && --time_out)
-            {
-                __NOP();        // 아무런 동작도 CPU를 바쁘게 하지도 않는 동작임.
-            }
-
-            /* Check if a timeout occurred */
-            // 설정한 최대대기 시간을 초과하면 연산이 정상적으로 진행되지 않음을 의미함.
-            if (RESET_VALUE == time_out)
-            {
-                APP_PRINT("\r\nWriteRead operation not complete due to timeout");
-                deinit_ssi();
-                deinit_gpt();
-                /* Trap here */
-                APP_ERR_TRAP(FSP_ERR_TIMEOUT);
-            }
-
-            /* Compare the transmission of sample audio data from source buffer
-             * to destination buffer with WriteRead API */
-            int cmp_result = memcmp(g_src_buff[!g_buffer_index], g_dest_buff, SSI_STREAMING_EXAMPLE_SAMPLES_PER_CHUNK);
-
-            // 만약에 둘이 같아서 0이 나온다
-            if (RESET_VALUE == cmp_result)
-            {
-                APP_PRINT("\r\nTransmitted and received sample audio data comparison successful"); // 성공하
-            }
-
-
-            else    // 둘이 같지가 않다면
-            {
-                APP_PRINT("\r\nTransmitted and received sample audio data comparison failed");     // 실패하
-            }
-
-            static uint32_t dbg_cnt = 0;
-            if (++dbg_cnt % 100 == 0)        /* 100번째 루프마다 한 번만 출력 */
-            {
-
-                SEGGER_RTT_printf(0, "\r\n");
-
-                SEGGER_RTT_printf(0, "Lch=%d  Rch=%d\r\n",
-                                  g_dest_buff[0],          /* 수신 버퍼 1번 샘플(L) */
-                                  g_dest_buff[1]);         /* 수신 버퍼 1번 샘플(R) */
-            }
 }
-        }
 
-
-/***********************************************************************************************************************
- *  @brief      This function generates stereo audio samples in the form of a sine wave and stores them into 2 buffers
-
-실제 사운드 데이터를 실시간으로 생성하고
-
-버퍼에 채운 뒤
-
-SSI나 DMA 등을 통해 스피커로 출력되게 한다.
- *              for later transmission.
- *  @param[IN]  buffer_index
- *  @retval     None
- **********************************************************************************************************************/
-
+/***** Generate stereo sine wave into selected buffer ************************/
 static void ssi_example_calculate_samples(uint32_t buffer_index)
 {
+    /* Derive sample rate from GPT settings */
+    uint32_t pclkd_hz = R_FSP_SystemClockHzGet(FSP_PRIV_CLOCK_PCLKD);
+    uint32_t period   = pclkd_hz / g_timer_cfg.period_counts;
+    uint32_t fs       = period / (2U * 2U * 16U);   /* See original formula */
 
-    // 타이머가 사용하는 클럭 주파수를 가져온다.
-    uint32_t pclkd_get_hz = R_FSP_SystemClockHzGet (FSP_PRIV_CLOCK_PCLKD); /* PCLKD clock (GPT clock) */
+    static uint32_t t = 0U;                         /* Running sample index */
+    const uint32_t tone_hz = SSI_STREAMING_EXAMPLE_TONE_FREQUENCY_HZ;
 
-    // 오디오 샘플링 주파수를 계산한다.
-    uint32_t period = pclkd_get_hz / g_timer_cfg.period_counts;
-
-    /* Audio sample frequency (bit_clock (Hz) = sampling_frequency (Hz) * channels * system_word_bits
-     * (the bit clock for transmitting 2 channels of 16-bit data),
-     * audio_clock (Hz) = desired_bit_clock (Hz) * bit_clock_divider) */
-    uint32_t audio_sample = (period / (2 * 2 * 16));
-
-    static uint32_t t = 0U;
-    /* Create a stereo sine wave. Using formula sample = sin(2 * pi * tone_frequency * t / sampling_frequency) */
-    uint32_t freq = SSI_STREAMING_EXAMPLE_TONE_FREQUENCY_HZ;
-    for (uint32_t i = 0; i < SSI_STREAMING_EXAMPLE_SAMPLES_PER_CHUNK / 2; i += 1)
+    for (uint32_t i = 0; i < SSI_STREAMING_EXAMPLE_SAMPLES_PER_CHUNK / 2U; ++i)
     {
-        float input = (float) ((2.0f * M_PI * freq * t) / (audio_sample));
-        t++;
-        /* Store sample twice, once for left channel and once for right channel */
-        int16_t sample = (int16_t) ((INT16_MAX * sinf (input)));
-        g_src_buff[buffer_index][2 * i] = sample;
-        g_src_buff[buffer_index][2 * i + 1] = sample;
+        float angle = 2.0f * (float)M_PI * (float)tone_hz * (float)t / (float)fs;
+        ++t;
+        int16_t sample = (int16_t)((float)INT16_MAX * sinf(angle));
+
+        /* Write to L & R */
+        g_src_buff[buffer_index][2U * i]     = sample;
+        g_src_buff[buffer_index][2U * i + 1] = sample;
     }
-    /* Data is ready to be sent in the interrupt */
-    g_data_ready = true;
+
+    g_data_ready = true;        /* Buffer ready for transmission */
 }
 
-
-
-/***********************************************************************************************************************
- *  @brief      This function is responsible for transferring data between two buffers
- *              (source buffer and destination buffer).
- *  @param[IN]  None
- *  @retval     None
- **********************************************************************************************************************/
-static void ssi_example_write()
+/***** Transmit one buffer using non‑blocking DMA (TX only) ******************/
+static void ssi_example_write(void)
 {
-    /* Setting g_dest_buff to zero */
-    memset(g_dest_buff, 0, sizeof(g_dest_buff));
+    if (!g_data_ready)
+    {
+        return;     /* Buffer not ready yet – skip */
+    }
 
-    /* Transfer data. This call is non-blocking */
-    fsp_err_t err = R_SSI_WriteRead(&g_i2s_ctrl,\
-                                    (uint8_t *)g_src_buff[g_buffer_index],\
-                                    (uint8_t *)g_dest_buff,\
-                                    SSI_STREAMING_EXAMPLE_SAMPLES_PER_CHUNK * sizeof(int16_t));
+    size_t bytes = SSI_STREAMING_EXAMPLE_SAMPLES_PER_CHUNK * sizeof(int16_t);
+
+    fsp_err_t err = R_SSI_Write(&g_i2s_ctrl,
+                                (uint8_t *) g_src_buff[g_buffer_index],
+                                bytes);
     if (FSP_SUCCESS == err)
     {
-        /* Switch the buffer after data is sent */
+        /* Switch to alternate buffer for next prepare */
         g_buffer_index = !g_buffer_index;
-        /* Allow loop to calculate next buffer only if transmission was successful. Clear flag. */
-        g_data_ready = false;
+        g_data_ready   = false;
     }
     else
     {
-        /* Handle error */
-        APP_ERR_PRINT("\r\nR_SSI_WriteRead API failed, Closing SSI and GPT\r\n");
+        APP_PRINT("\r\nR_SSI_Write failed – closing peripherals\r\n");
         deinit_ssi();
         deinit_gpt();
-        /* Trap here */
         APP_ERR_TRAP(err);
-        /* Getting here most likely means a transmit overflow occurred before the  transmit buffer could be reloaded
-         * The application must wait until the SSI is idle, then restart transmission
-         * In this example, the idle callback transmits data or resets the flag g_send_data_in_main_loop */
     }
-  }
-
-
-
-/***********************************************************************************************************************
- *  @brief      This function gets SSI events
- *  @param[IN]  p_args
- *  @retval     None
- **********************************************************************************************************************/
-void i2s_callback(i2s_callback_args_t *p_args)
-{
-    if( NULL != p_args)
-    {
-        /* Capture callback event for validating the i2s transfer event */
-        g_i2s_event = p_args->event;
-    }
-    /* Reload the transmit buffer if we hit the transmit water mark or restart transmission if the SSI is idle
-     * because it was stopped after a transmit buffer overflow */
-        if ((I2S_EVENT_TX_EMPTY == p_args->event) || (I2S_EVENT_IDLE == p_args->event))
-    {
-            if (g_data_ready)
-            {
-                /* Reload the transmit buffer and handle errors */
-                ssi_example_write();
-            }
-            else
-            {
-                /* Data was not ready yet, send it in the main loop */
-                g_send_data_in_main_loop = true;
-            }
-     }
 }
 
+/***** SSI ISR callback ******************************************************/
+void i2s_callback(i2s_callback_args_t * p_args)
+{
+    if ((NULL != p_args) && (I2S_EVENT_TX_EMPTY == p_args->event))
+    {
+        if (g_data_ready)
+        {
+            /* Reload from interrupt context if ready */
+            ssi_example_write();
+        }
+        else
+        {
+            /* Not ready yet – let main loop handle when prepared */
+            g_send_data_now = true;
+        }
+    }
+}
 
-
-/***********************************************************************************************************************
- *  @brief      This function is used to close SSI module.
- *  @param[IN]  None
- *  @retval     None
- **********************************************************************************************************************/
+/***** Peripheral de‑initialisation ******************************************/
 static void deinit_ssi(void)
 {
-    fsp_err_t err = FSP_SUCCESS;
-    /* Close SSI Module */
-    err = R_SSI_Close(&g_i2s_ctrl);
-    /* Handle error */
+    fsp_err_t err = R_SSI_Close(&g_i2s_ctrl);
     if (FSP_SUCCESS != err)
     {
-        APP_ERR_PRINT("\r\nR_SSI_Close API Failed\r\n");
+        APP_PRINT("\r\nR_SSI_Close failed\r\n");
     }
 }
 
-
-
-/***********************************************************************************************************************
- *  @brief      This function is used to close GPT module.
- *  @param[IN]  None
- *  @retval     None
- **********************************************************************************************************************/
 static void deinit_gpt(void)
 {
-    fsp_err_t err = FSP_SUCCESS;
-    /* Close GPT module */
-    err = R_GPT_Close(&g_timer_ctrl);
-
-
-    /* Handle error */
+    fsp_err_t err = R_GPT_Close(&g_timer_ctrl);
     if (FSP_SUCCESS != err)
     {
-        APP_ERR_PRINT("\r\nR_GPT_Close API Failed\r\n");
+        APP_PRINT("\r\nR_GPT_Close failed\r\n");
     }
 }

@@ -66,16 +66,20 @@ fsp_err_t da7212_speaker_init(void)
     }
 
     // 1. SYSTEM_ACTIVE 설정
+    // 체크
     reg[0] = 0xFD; reg[1] = 0x01;
     err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
+
     if (FSP_SUCCESS != err) return err;
     R_BSP_SoftwareDelay(40, BSP_DELAY_UNITS_MILLISECONDS);
 
     // 2. BIAS_EN 활성화
+    //
     reg[0] = 0x23; reg[1] = 0x08;
     err = R_IIC_MASTER_Write(&g_i2c_master0_ctrl, reg, 2, false);
     if (FSP_SUCCESS != err) return err;
     R_BSP_SoftwareDelay(25, BSP_DELAY_UNITS_MILLISECONDS);
+
 
     // 3. 샘플레이트 48kHz 설정
     reg[0] = 0x22; reg[1] = 0x0B;
